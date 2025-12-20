@@ -1,0 +1,17 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": {
+      "description": "Backend API URL",
+      "value": "https://wedgram.onrender.com"
+    }
+  },
+  "regions": ["fra1"],
+  "github": {
+    "silent": false
+  }
+}
