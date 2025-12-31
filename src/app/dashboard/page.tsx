@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { useState, useEffect } from 'react'
 import { Progress } from '@/components/ui/progress'
+import { inviteApi } from '@/lib/api/invites'
+import { weddingApi } from '@/lib/api/wedding'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -19,6 +21,38 @@ export default function DashboardPage() {
       ? Math.ceil((new Date(user.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
       : 0,
   })
+
+
+  // Add this to the dashboard page
+useEffect(() => {
+  const fetchStats = async () => {
+    try {
+      const [guestsResponse, weddingResponse] = await Promise.all([
+        inviteApi.getGuests(1, 100),
+        weddingApi.getWedding().catch(() => null)
+      ])
+      
+      const totalGuests = guestsResponse?.data?.length || 0
+      const rsvpsReceived = guestsResponse?.data?.filter((g: any) => g.hasRSVPed).length || 0
+      const pendingInvitations = guestsResponse?.data?.filter((g: any) => !g.invited).length || 0
+      
+      setStats({
+        totalGuests,
+        rsvpsReceived,
+        pendingInvitations,
+        daysToWedding: user?.weddingDate 
+          ? Math.ceil((new Date(user.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+          : 0,
+      })
+    } catch (error) {
+      console.error('Failed to fetch stats:', error)
+    }
+  }
+  
+  if (user) {
+    fetchStats()
+  }
+}, [user])
 
   // Simulate loading stats
   useEffect(() => {

@@ -86,24 +86,26 @@ api.interceptors.response.use(
   }
 )
 
-// Helper function for GET requests
-// Helper function for GET requests
+// src/lib/api/client.ts - Update the fetcher function
 export const fetcher = async <T>(url: string): Promise<T> => {
   try {
     const response = await api.get(url)
-    console.log('Fetcher raw response:', response)
+    console.log('Fetcher response:', { url, data: response.data })
     
-    // Check if response has the API structure
-    if (response && typeof response === 'object') {
-      // If it's our API response format with success field
-      if ('success' in response) {
-        console.log('API response format detected, success:', response.success)
-        // Return the entire response object, not just data
-        return response
-      }
+    // If response.data exists and has a success field (our API format)
+    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+      console.log('API format detected, returning data field')
+      return response.data.data // Extract data from API response
     }
     
-    console.log('Non-API response format, returning as-is')
+    // If response.data exists but no success field, return it as-is
+    if (response.data !== undefined) {
+      console.log('Direct data format, returning as-is')
+      return response.data
+    }
+    
+    // Otherwise return the response
+    console.log('Returning full response')
     return response
   } catch (error: any) {
     console.error('Fetcher error:', error)
@@ -111,33 +113,89 @@ export const fetcher = async <T>(url: string): Promise<T> => {
   }
 }
 
-// Helper function for POST requests
+// Update these helper functions in client.ts
 export const post = async <T, D = unknown>(url: string, data: D): Promise<T> => {
   try {
-    const response = await api.post(url, data)
-    return response.data?.data || response.data
-  } catch (error: any) {
-    console.error('POST error:', error)
-    throw error
-  }
-}
+    console.log('POST request:', { 
+      url, 
+      dataType: data instanceof FormData ? 'FormData' : typeof data,
+      isFormData: data instanceof FormData
+    });
 
-// Helper function for PUT requests
+    // Handle FormData differently
+    if (data instanceof FormData) {
+      console.log('FormData detected, setting multipart headers');
+      
+      const response = await api.post(url, data, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      console.log('POST response (FormData):', { 
+        url, 
+        status: response.status, 
+        data: response.data 
+      });
+      
+      // Handle API response format
+      if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+        return response.data.data;
+      }
+      
+      return response.data;
+    } else {
+      // Regular JSON request
+      console.log('JSON request data:', JSON.stringify(data).substring(0, 200));
+      const response = await api.post(url, data);
+      console.log('POST response (JSON):', { url, status: response.status, data: response.data });
+      
+      // Handle API response format
+      if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+        return response.data.data;
+      }
+      
+      return response.data;
+    }
+  } catch (error: any) {
+    console.error('POST error details:', {
+      url,
+      message: error.message,
+      status: error.response?.status,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      request: error.request
+    });
+    throw error;
+  }
+};
+
 export const put = async <T, D = unknown>(url: string, data: D): Promise<T> => {
   try {
     const response = await api.put(url, data)
-    return response.data?.data || response.data
+    console.log('PUT response:', { url, response: response.data })
+    
+    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+      return response.data.data
+    }
+    
+    return response.data
   } catch (error: any) {
     console.error('PUT error:', error)
     throw error
   }
 }
 
-// Helper function for DELETE requests
 export const del = async <T>(url: string): Promise<T> => {
   try {
     const response = await api.delete(url)
-    return response.data?.data || response.data
+    console.log('DELETE response:', { url, response: response.data })
+    
+    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
+      return response.data.data
+    }
+    
+    return response.data
   } catch (error: any) {
     console.error('DELETE error:', error)
     throw error

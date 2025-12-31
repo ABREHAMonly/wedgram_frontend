@@ -1,7 +1,7 @@
-// src/lib/hooks/use-auth.ts (optimized)
+// src/lib/hooks/use-auth.ts - Enhanced version
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { authApi } from '@/lib/api/auth'
 import { User } from '@/types/auth'
@@ -13,7 +13,6 @@ export function useAuth() {
   const router = useRouter()
   const pathname = usePathname()
 
-  // Memoized function to check token expiration
   const isTokenExpired = useCallback((token: string): boolean => {
     try {
       const payload = JSON.parse(atob(token.split('.')[1]))
@@ -23,40 +22,50 @@ export function useAuth() {
     }
   }, [])
 
-  // Load user with error handling
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('wedgram_token') : null
-        
-        if (!token || isTokenExpired(token)) {
-          localStorage.removeItem('wedgram_token')
-          localStorage.removeItem('wedgram_user')
+  const loadUser = useCallback(async () => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('wedgram_token') : null
+      
+      if (!token || isTokenExpired(token)) {
+        localStorage.removeItem('wedgram_token')
+        localStorage.removeItem('wedgram_user')
+        setLoading(false)
+        return
+      }
+
+      // Try to load from cache first
+      const cachedUser = localStorage.getItem('wedgram_user')
+      if (cachedUser) {
+        const { data, timestamp } = JSON.parse(cachedUser)
+        // Use cache if less than 5 minutes old
+        if (Date.now() - timestamp < 5 * 60 * 1000) {
+          setUser(data)
           setLoading(false)
           return
         }
-
-        const userData = await authApi.getProfile()
-        setUser(userData)
-        
-        // Cache user data with timestamp
-        localStorage.setItem('wedgram_user', JSON.stringify({
-          data: userData,
-          timestamp: Date.now()
-        }))
-      } catch (error) {
-        console.error('Failed to load user:', error)
-        localStorage.removeItem('wedgram_token')
-        localStorage.removeItem('wedgram_user')
-      } finally {
-        setLoading(false)
       }
-    }
 
-    loadUser()
+      // Fetch fresh user data
+      const userData = await authApi.getProfile()
+      setUser(userData)
+      
+      localStorage.setItem('wedgram_user', JSON.stringify({
+        data: userData,
+        timestamp: Date.now()
+      }))
+    } catch (error) {
+      console.error('Failed to load user:', error)
+      localStorage.removeItem('wedgram_token')
+      localStorage.removeItem('wedgram_user')
+    } finally {
+      setLoading(false)
+    }
   }, [isTokenExpired])
 
-  // Memoized login function
+  useEffect(() => {
+    loadUser()
+  }, [loadUser])
+
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
     try {
       setLoading(true)
@@ -83,7 +92,6 @@ export function useAuth() {
     }
   }, [router])
 
-  // Memoized register function
   const register = useCallback(async (userData: any) => {
     try {
       setLoading(true)
@@ -110,9 +118,9 @@ export function useAuth() {
     }
   }, [router])
 
-  // Memoized logout function
   const logout = useCallback(async () => {
     try {
+      await authApi.logout()
       localStorage.removeItem('wedgram_token')
       localStorage.removeItem('wedgram_user')
       setUser(null)
@@ -126,12 +134,15 @@ export function useAuth() {
     }
   }, [router])
 
+  const isAuthenticated = useMemo(() => !!user, [user])
+
   return {
     user,
     loading,
     login,
     register,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated,
+    refreshUser: loadUser,
   }
 }

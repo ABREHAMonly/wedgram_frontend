@@ -1,3 +1,4 @@
+//src\lib\api\notifications.ts
 import { fetcher, put } from './client'
 
 export interface Notification {
@@ -6,43 +7,14 @@ export interface Notification {
   type: 'rsvp' | 'guest_added' | 'invitation_sent' | 'invitation_failed' | 'message' | 'system'
   title: string
   description: string
-  data: {
-    guestId?: string
-    guestName?: string
-    status?: string
-    method?: string
-  }
+  data?: Record<string, any>
   read: boolean
   createdAt: string
   updatedAt: string
 }
 
-export interface NotificationsResponse {
-  success: boolean
-  message: string
-  data: {
-    notifications: Notification[]
-    meta: {
-      page: number
-      limit: number
-      total: number
-      totalPages: number
-    }
-  }
-  timestamp: string
-}
-
-export interface UnreadCountResponse {
-  success: boolean
-  message: string
-  data: {
-    count: number
-  }
-  timestamp: string
-}
-
 export const notificationsApi = {
-  getNotifications: async (page = 1, limit = 20): Promise<{
+ getNotifications: async (page = 1, limit = 20): Promise<{
     notifications: Notification[]
     meta: {
       page: number
@@ -51,16 +23,51 @@ export const notificationsApi = {
       totalPages: number
     }
   }> => {
-    console.log('Fetching notifications...')
-    const response = await fetcher<NotificationsResponse>(`/api/v1/notifications?page=${page}&limit=${limit}`)
-    return response.data
+    try {
+      const response = await fetcher<any>(`/api/v1/notifications?page=${page}&limit=${limit}`)
+      console.log('Notifications API response:', response)
+      
+      // The backend returns { success, message, data, meta }
+      if (response.success) {
+        return {
+          notifications: response.data?.notifications || [],
+          meta: response.data?.meta || { page, limit, total: 0, totalPages: 0 }
+        }
+      }
+      
+      // If response is direct data format
+      if (response.notifications) {
+        return {
+          notifications: response.notifications,
+          meta: response.meta || { page, limit, total: response.total || 0, totalPages: response.totalPages || 0 }
+        }
+      }
+      
+      return {
+        notifications: [],
+        meta: { page, limit, total: 0, totalPages: 0 }
+      }
+    } catch (error) {
+      console.error('Failed to get notifications:', error)
+      return {
+        notifications: [],
+        meta: { page, limit, total: 0, totalPages: 0 }
+      }
+    }
   },
 
-  getUnreadCount: async (): Promise<number> => {
+ getUnreadCount: async (): Promise<number> => {
     try {
-      console.log('Fetching unread count...')
-      const response = await fetcher<UnreadCountResponse>('/api/v1/notifications/unread-count')
-      return response.data.count
+      const response = await fetcher<any>('/api/v1/notifications/unread-count')
+      console.log('Unread count response:', response)
+      
+      // The backend returns { success, data: { count } }
+      if (response.success) {
+        return response.data?.count || 0
+      }
+      
+      // If response is direct { count }
+      return response.count || 0
     } catch (error) {
       console.error('Failed to get unread count:', error)
       return 0
@@ -68,12 +75,20 @@ export const notificationsApi = {
   },
 
   markAsRead: async (id: string): Promise<void> => {
-    console.log('Marking notification as read:', id)
-    await put(`/api/v1/notifications/${id}/read`, {})
+    try {
+      await put(`/api/v1/notifications/${id}/read`, {})
+    } catch (error) {
+      console.error('Failed to mark as read:', error)
+      throw error
+    }
   },
 
   markAllAsRead: async (): Promise<void> => {
-    console.log('Marking all notifications as read')
-    await put('/api/v1/notifications/read-all', {})
-  },
+    try {
+      await put('/api/v1/notifications/read-all', {})
+    } catch (error) {
+      console.error('Failed to mark all as read:', error)
+      throw error
+    }
+  }
 }

@@ -1,3 +1,4 @@
+//src\lib\api\guest.ts
 import { post, fetcher, put } from './client'
 
 export interface Guest {
@@ -35,13 +36,18 @@ export interface GuestsResponse {
 }
 
 export const guestApi = {
-  getGuests: async (params?: {
+ getGuests: async (params?: {
     page?: number
     limit?: number
     status?: string
   }): Promise<{
     guests: Guest[]
-    meta: GuestsResponse['meta']
+    meta: {
+      page: number
+      limit: number
+      total: number
+      totalPages: number
+    }
   }> => {
     console.log('Fetching guests with params:', params)
     const queryParams = new URLSearchParams()
@@ -52,11 +58,56 @@ export const guestApi = {
     const queryString = queryParams.toString()
     const url = `/api/v1/invites${queryString ? `?${queryString}` : ''}`
     
-    const response = await fetcher<GuestsResponse>(url)
-    console.log('Get guests response:', response)
-    return {
-      guests: response.data || [],
-      meta: response.meta || { page: 1, limit: 20, total: 0, totalPages: 0 }
+    console.log('Fetching from URL:', url)
+    
+    try {
+      const response = await fetcher<any>(url)
+      console.log('Get guests response:', response)
+      
+      // Handle different response formats
+      if (response.success) {
+        // Standard API response format
+        return {
+          guests: response.data || [],
+          meta: response.meta || { 
+            page: params?.page || 1, 
+            limit: params?.limit || 20, 
+            total: response.data?.length || 0, 
+            totalPages: 1 
+          }
+        }
+      } else if (Array.isArray(response)) {
+        // Direct array response
+        return {
+          guests: response,
+          meta: {
+            page: params?.page || 1,
+            limit: params?.limit || 20,
+            total: response.length,
+            totalPages: Math.ceil(response.length / (params?.limit || 20))
+          }
+        }
+      } else if (response.data && Array.isArray(response.data)) {
+        // Some other format with data array
+        return {
+          guests: response.data,
+          meta: response.meta || {
+            page: params?.page || 1,
+            limit: params?.limit || 20,
+            total: response.data.length,
+            totalPages: Math.ceil(response.data.length / (params?.limit || 20))
+          }
+        }
+      }
+      
+      console.warn('Unexpected response format:', response)
+      return {
+        guests: [],
+        meta: { page: params?.page || 1, limit: params?.limit || 20, total: 0, totalPages: 0 }
+      }
+    } catch (error: any) {
+      console.error('Error fetching guests:', error)
+      throw error
     }
   },
 

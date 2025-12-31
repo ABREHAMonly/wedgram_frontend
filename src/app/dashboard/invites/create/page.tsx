@@ -49,16 +49,24 @@ export default function CreateInvitePage() {
   }, [])
 
   const checkWedding = async () => {
-    setWeddingLoading(true)
-    try {
-      await weddingApi.checkWeddingExists()
-      setHasWedding(true)
-    } catch {
+  setWeddingLoading(true)
+  try {
+    const exists = await weddingApi.checkWeddingExists()
+    setHasWedding(exists)
+  } catch (error: any) {
+    console.error('Wedding check error:', error)
+    // If 404, wedding doesn't exist
+    if (error.status === 404) {
       setHasWedding(false)
-    } finally {
-      setWeddingLoading(false)
+    } else {
+      // For other errors, still try to proceed
+      setHasWedding(false)
+      toast.error('Error checking wedding status')
     }
+  } finally {
+    setWeddingLoading(false)
   }
+}
 
   const createDefaultWedding = async () => {
     setLoading(true)
